@@ -6,5 +6,4 @@ deepspeed --num_gpus=1 ./run_seq2seq_deepspeed_peft.py \
     --per_device_eval_batch_size 8 \
     --generation_max_length 129 \
     --lr 1e-4 \
-    --deepspeed configs/ds_flan_t5_z3_config_bf16.json \
-    2>&1 | tee run_t5_ds.log
+    2>&1 | tee run_t5_no_ds.log
