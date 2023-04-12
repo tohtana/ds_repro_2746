@@ -1,4 +1,4 @@
-deepspeed --num_gpus=1 ./run_seq2seq_deepspeed_peft.py \
+python run_seq2seq_deepspeed_peft.py \
     --model_id google/flan-t5-base \
     --dataset_path data \
     --epochs 3 \
