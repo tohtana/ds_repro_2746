@@ -57,7 +57,7 @@ def parse_arge():
         "--repository_id", type=str, default=None, help="Hugging Face Repository id for uploading models"
     )
     # add training hyperparameters for epochs, batch size, learning rate, and seed
-    parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for.")
+    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train for.")
     parser.add_argument("--per_device_train_batch_size", type=int, default=8, help="Batch size to use for training.")
     parser.add_argument("--per_device_eval_batch_size", type=int, default=8, help="Batch size to use for testing.")
     parser.add_argument("--generation_max_length", type=int, default=140, help="Maximum length to use for generation")
@@ -122,6 +122,7 @@ def training_function(args):
         preds, labels = eval_preds
         if isinstance(preds, tuple):
             preds = preds[0]
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
         decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
         # Replace -100 in the labels as we can't decode them.
         labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
@@ -168,6 +169,9 @@ def training_function(args):
         hub_token=args.hf_token,
     )
 
+    train_dataset = torch.utils.data.Subset(train_dataset, range(1000))
+    eval_dataset = torch.utils.data.Subset(eval_dataset, range(100))
+
     # Create Trainer instance
     trainer = Seq2SeqTrainer(
         model=model,
@@ -181,12 +185,13 @@ def training_function(args):
     # Start training
     trainer.train()
 
-    # Save our tokenizer and create model card
-    tokenizer.save_pretrained(output_dir)
-    trainer.create_model_card()
-    # Push the results to the hub
-    if args.repository_id:
-        trainer.push_to_hub()
+    device = torch.device("cuda")
+    loader = torch.utils.data.DataLoader(eval_dataset, batch_size=args.per_device_eval_batch_size, shuffle=False, collate_fn=data_collator)
+    for batch in loader:
+        with torch.no_grad():
+            outputs = model.generate(input_ids=batch['input_ids'].to(device),
+                attention_mask=batch['attention_mask'].to(device), max_new_tokens=128) # num_beams=8, early_stopping=True)
+            print(tokenizer.batch_decode(outputs, skip_special_tokens=True))
 
 
 def main():
